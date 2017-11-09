@@ -917,6 +917,7 @@ int cmd_update_index(int argc, const char **argv, const char *prefix)
 	struct refresh_params refresh_args = {0, &has_errors};
 	int lock_error = 0;
 	int split_index = -1;
+	int fast_index = -1;
 	struct lock_file lock_file = LOCK_INIT;
 	struct parse_opt_ctx_t ctx;
 	strbuf_getline_fn getline_fn;
@@ -1008,6 +1009,8 @@ int cmd_update_index(int argc, const char **argv, const char *prefix)
 			    N_("test if the filesystem supports untracked cache"), UC_TEST),
 		OPT_SET_INT(0, "force-untracked-cache", &untracked_cache,
 			    N_("enable untracked cache without testing the filesystem"), UC_FORCE),
+		OPT_BOOL(0, "fastindex", &fast_index,
+			N_("enable or disable fast index parsing")),
 		OPT_END()
 	};
 
@@ -1144,6 +1147,25 @@ int cmd_update_index(int argc, const char **argv, const char *prefix)
 		break;
 	default:
 		die("BUG: bad untracked_cache value: %d", untracked_cache);
+	}
+
+	if (fast_index > 0) {
+		if (git_config_get_fast_index() == 0)
+			warning(_("core.fastindex is unset; "
+				"set it if you really want to "
+				"enable fastindex"));
+		core_fast_index = 1;
+		active_cache_changed |= SOMETHING_CHANGED;
+		report(_("fastindex enabled"));
+	}
+	else if (!fast_index) {
+		if (git_config_get_fast_index() == 1)
+			warning(_("core.fastindex is set; "
+				"remove it if you really want to "
+				"disable fastindex"));
+		core_fast_index = 0;
+		active_cache_changed |= SOMETHING_CHANGED;
+		report(_("fastindex disabled"));
 	}
 
 	if (active_cache_changed) {
