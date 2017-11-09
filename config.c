@@ -1203,6 +1203,11 @@ static int git_default_core_config(const char *var, const char *value)
 		return 0;
 	}
 
+	if (!strcmp(var, "core.fastindex")) {
+		core_fast_index = git_config_bool(var, value);
+		return 0;
+	}
+
 	if (!strcmp(var, "core.createobject")) {
 		if (!strcmp(value, "rename"))
 			object_creation_mode = OBJECT_CREATION_USES_RENAMES;
@@ -2152,6 +2157,21 @@ int git_config_get_max_percent_split_change(void)
 		return error(_("splitIndex.maxPercentChange value '%d' "
 			       "should be between 0 and 100"), val);
 	}
+
+	return -1; /* default value */
+}
+
+int ignore_fast_index_config;
+int git_config_get_fast_index(void)
+{
+	int val;
+
+	/* Hack for test programs like test-ieot */
+	if (ignore_fast_index_config)
+		return core_fast_index;
+
+	if (!git_config_get_maybe_bool("core.fastindex", &val))
+		return val;
 
 	return -1; /* default value */
 }
