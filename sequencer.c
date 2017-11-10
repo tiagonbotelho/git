@@ -877,8 +877,8 @@ static const char *implicit_ident_advice(void)
 
 }
 
-void print_commit_summary(const char *prefix, const struct object_id *oid,
-			  unsigned int flags)
+int print_commit_summary(const char *prefix, const struct object_id *oid,
+			 unsigned int flags)
 {
 	struct rev_info rev;
 	struct commit *commit;
@@ -887,12 +887,13 @@ void print_commit_summary(const char *prefix, const struct object_id *oid,
 	struct pretty_print_context pctx = {0};
 	struct strbuf author_ident = STRBUF_INIT;
 	struct strbuf committer_ident = STRBUF_INIT;
+	int ret = 0;
 
 	commit = lookup_commit(oid);
 	if (!commit)
-		die(_("couldn't look up newly created commit"));
+		return error(_("couldn't look up newly created commit"));
 	if (parse_commit(commit))
-		die(_("could not parse newly created commit"));
+		return error(_("could not parse newly created commit"));
 
 	strbuf_addstr(&format, "format:%h] %s");
 
@@ -936,8 +937,10 @@ void print_commit_summary(const char *prefix, const struct object_id *oid,
 	diff_setup_done(&rev.diffopt);
 
 	head = resolve_ref_unsafe("HEAD", 0, NULL, NULL);
-	if (!head)
-		die_errno(_("unable to resolve HEAD after creating commit"));
+	if (!head) {
+		ret = error_errno(_("unable to resolve HEAD after creating commit"));
+		goto out;
+	}
 	if (!strcmp(head, "HEAD"))
 		head = _("detached HEAD");
 	else
@@ -950,7 +953,9 @@ void print_commit_summary(const char *prefix, const struct object_id *oid,
 		log_tree_commit(&rev, commit);
 	}
 
+out:
 	strbuf_release(&format);
+	return ret;
 }
 
 static int is_original_commit_empty(struct commit *commit)
