@@ -592,7 +592,7 @@ static int read_env_script(struct argv_array *env)
 	return 0;
 }
 
-static char *get_author(const char* message)
+static char *get_author(const char *message)
 {
 	size_t len;
 	const char *a;
@@ -1104,7 +1104,7 @@ static int try_to_commit(struct strbuf *msg, const char *author,
 	}
 
 	if (update_head_with_reflog(current_head, oid,
-				    getenv("GIT_REFLOG_ACTION"), msg, &err)){
+				    getenv("GIT_REFLOG_ACTION"), msg, &err)) {
 		res = error("%s", err.buf);
 		goto out;
 	}
@@ -1121,7 +1121,7 @@ out:
 	return res;
 }
 
-static int do_commit(const char *msg_file, const char* author,
+static int do_commit(const char *msg_file, const char *author,
 		     struct replay_opts *opts, unsigned int flags)
 {
 	int res = 1;
@@ -1521,7 +1521,7 @@ static int do_pick_commit(enum todo_command command, struct commit *commit,
 			strbuf_addstr(&msgbuf, oid_to_hex(&commit->object.oid));
 			strbuf_addstr(&msgbuf, ")\n");
 		}
-		if (!is_fixup (command))
+		if (!is_fixup(command))
 			author = get_author(msg.message);
 	}
 
