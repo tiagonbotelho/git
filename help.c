@@ -313,6 +313,28 @@ static void list_commands_by_category(int cat, struct cmdname_help *cmds,
 	}
 }
 
+void list_common_guides_help(void)
+{
+	int i, longest = 0;
+	int nr = ARRAY_SIZE(command_list);
+	struct cmdname_help *cmds = command_list;
+
+	QSORT(cmds, nr, cmd_category_cmp);
+
+	for (i = 0; i < nr; i++) {
+		struct cmdname_help *cmd = cmds + i;
+
+		if (cmd->category != CAT_guide)
+			continue;
+		if (longest < strlen(cmd->name))
+			longest = strlen(cmd->name);
+	}
+
+	puts(_("The common Git guides are:\n"));
+	list_commands_by_category(CAT_guide, cmds, nr, longest);
+	putchar('\n');
+}
+
 void list_all_cmds_help(void)
 {
 	int i, longest = 0;
