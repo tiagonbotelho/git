@@ -378,6 +378,20 @@ static void print_preparing_worktree_line(const char *branch,
 	}
 }
 
+static const char *dwim_branch(const char *path, const char **new_branch)
+{
+	int n;
+	const char *s = worktree_basename(path, &n);
+	*new_branch = xstrndup(s, n);
+	if (guess_remote) {
+		struct object_id oid;
+		const char *remote =
+			unique_tracking_name(*new_branch, &oid);
+		return remote;
+	}
+	return NULL;
+}
+
 static int add(int ac, const char **av, const char *prefix)
 {
 	struct add_opts opts;
@@ -430,16 +444,9 @@ static int add(int ac, const char **av, const char *prefix)
 	}
 
 	if (ac < 2 && !new_branch && !opts.detach) {
-		int n;
-		const char *s = worktree_basename(path, &n);
-		new_branch = xstrndup(s, n);
-		if (guess_remote) {
-			struct object_id oid;
-			const char *remote =
-				unique_tracking_name(new_branch, &oid);
-			if (remote)
-				branch = remote;
-		}
+		const char *s = dwim_branch(path, &new_branch);
+		if (s)
+			branch = s;
 	}
 
 	if (ac == 2 && !new_branch && !opts.detach) {
