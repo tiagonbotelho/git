@@ -228,6 +228,8 @@ static int handle_options(const char ***argv, int *argc, int *envchanged)
 				list_builtins(0, '\n');
 			else if (!strcmp(cmd, "parseopt"))
 				list_builtins(NO_PARSEOPT, ' ');
+			else if (!strcmp(cmd, "all"))
+				list_all_cmds();
 			else
 				die("unsupported command listing type '%s'", cmd);
 			exit(0);
