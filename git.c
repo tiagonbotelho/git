@@ -223,11 +223,13 @@ static int handle_options(const char ***argv, int *argc, int *envchanged)
 			}
 			(*argv)++;
 			(*argc)--;
-		} else if (!strcmp(cmd, "--list-builtins")) {
-			list_builtins(0, '\n');
-			exit(0);
-		} else if (!strcmp(cmd, "--list-parseopt-builtins")) {
-			list_builtins(NO_PARSEOPT, ' ');
+		} else if (skip_prefix(cmd, "--list-cmds=", &cmd)) {
+			if (!strcmp(cmd, "builtins"))
+				list_builtins(0, '\n');
+			else if (!strcmp(cmd, "parseopt"))
+				list_builtins(NO_PARSEOPT, ' ');
+			else
+				die("unsupported command listing type '%s'", cmd);
 			exit(0);
 		} else {
 			fprintf(stderr, _("unknown option: %s\n"), cmd);
