@@ -301,8 +301,6 @@ static int add_worktree(const char *path, const char *refname,
 	strbuf_addf(&sb, "%s/commondir", sb_repo.buf);
 	write_file(sb.buf, "../..");
 
-	fprintf_ln(stderr, _("Preparing %s (identifier %s)"), path, name);
-
 	argv_array_pushf(&child_env, "%s=%s", GIT_DIR_ENVIRONMENT, sb_git.buf);
 	argv_array_pushf(&child_env, "%s=%s", GIT_WORK_TREE_ENVIRONMENT, path);
 	cp.git_cmd = 1;
@@ -353,6 +351,31 @@ done:
 	strbuf_release(&sb_repo);
 	strbuf_release(&sb_git);
 	return ret;
+}
+
+static void print_preparing_worktree_line(const char *branch,
+					  const char *new_branch,
+					  const char *new_branch_force)
+{
+	if (new_branch_force) {
+		struct commit *commit = lookup_commit_reference_by_name(new_branch_force);
+		if (!commit)
+			printf_ln(_("Preparing worktree (new branch '%s')"), new_branch_force);
+		else
+			printf_ln(_("Preparing worktree (resetting branch '%s' (was at %s))"),
+				  new_branch_force,
+				  find_unique_abbrev(commit->object.oid.hash,
+						     DEFAULT_ABBREV));
+	} else if (new_branch) {
+		printf_ln(_("Preparing worktree (new branch '%s')"), new_branch);
+	} else {
+		struct commit *commit = lookup_commit_reference_by_name(branch);
+		if (!commit)
+			die(_("invalid reference: %s"), branch);
+		printf_ln(_("Preparing worktree (detached HEAD %s)"),
+			  find_unique_abbrev(commit->object.oid.hash,
+					     DEFAULT_ABBREV));
+	}
 }
 
 static int add(int ac, const char **av, const char *prefix)
@@ -433,6 +456,8 @@ static int add(int ac, const char **av, const char *prefix)
 			}
 		}
 	}
+
+	print_preparing_worktree_line(branch, new_branch, new_branch_force);
 
 	if (new_branch) {
 		struct child_process cp = CHILD_PROCESS_INIT;
