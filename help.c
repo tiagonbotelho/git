@@ -284,6 +284,75 @@ void list_porcelain_cmds(void)
 	}
 }
 
+static int cmd_category_cmp(const void *elem1, const void *elem2)
+{
+	const struct cmdname_help *e1 = elem1;
+	const struct cmdname_help *e2 = elem2;
+
+	if (e1->category < e2->category)
+		return -1;
+	if (e1->category > e2->category)
+		return 1;
+	return strcmp(e1->name, e2->name);
+}
+
+static void list_commands_by_category(int cat, struct cmdname_help *cmds,
+				      int nr, int longest)
+{
+	int i;
+
+	for (i = 0; i < nr; i++) {
+		struct cmdname_help *cmd = cmds + i;
+
+		if (cmd->category != cat)
+			continue;
+
+		printf("   %s   ", cmd->name);
+		mput_char(' ', longest - strlen(cmd->name));
+		puts(_(cmd->help));
+	}
+}
+
+void list_all_cmds_help(void)
+{
+	int i, longest = 0;
+	int nr = ARRAY_SIZE(command_list);
+	struct cmdname_help *cmds = command_list;
+
+	for (i = 0; i < nr; i++) {
+		struct cmdname_help *cmd = cmds + i;
+
+		if (longest < strlen(cmd->name))
+			longest = strlen(cmd->name);
+	}
+
+	QSORT(cmds, nr, cmd_category_cmp);
+
+	printf("%s\n\n", _("Main Porcelain Commands"));
+	list_commands_by_category(CAT_mainporcelain, cmds, nr, longest);
+
+	printf("\n%s\n\n", _("Ancillary Commands / Manipulators"));
+	list_commands_by_category(CAT_ancillarymanipulators, cmds, nr, longest);
+
+	printf("\n%s\n\n", _("Ancillary Commands / Interrogators"));
+	list_commands_by_category(CAT_ancillaryinterrogators, cmds, nr, longest);
+
+	printf("\n%s\n\n", _("Interacting with Others"));
+	list_commands_by_category(CAT_foreignscminterface, cmds, nr, longest);
+
+	printf("\n%s\n\n", _("Low-level Commands / Manipulators"));
+	list_commands_by_category(CAT_plumbingmanipulators, cmds, nr, longest);
+
+	printf("\n%s\n\n", _("Low-level Commands / Interrogators"));
+	list_commands_by_category(CAT_plumbinginterrogators, cmds, nr, longest);
+
+	printf("\n%s\n\n", _("Low-level Commands / Synching Repositories"));
+	list_commands_by_category(CAT_synchingrepositories, cmds, nr, longest);
+
+	printf("\n%s\n\n", _("Low-level Commands / Internal Helpers"));
+	list_commands_by_category(CAT_purehelpers, cmds, nr, longest);
+}
+
 int is_in_cmdlist(struct cmdnames *c, const char *s)
 {
 	int i;
