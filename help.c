@@ -190,6 +190,27 @@ void list_commands(unsigned int colopts,
 	}
 }
 
+static void extract_common_cmds(struct cmdname_help **p_common_cmds,
+				int *p_nr)
+{
+	int i, nr = 0;
+	struct cmdname_help *common_cmds;
+
+	ALLOC_ARRAY(common_cmds, ARRAY_SIZE(command_list));
+
+	for (i = 0; i < ARRAY_SIZE(command_list); i++) {
+		const struct cmdname_help *cmd = command_list + i;
+
+		if (cmd->category != CAT_mainporcelain)
+			continue;
+
+		common_cmds[nr++] = *cmd;
+	}
+
+	*p_common_cmds = common_cmds;
+	*p_nr = nr;
+}
+
 static int cmd_group_cmp(const void *elem1, const void *elem2)
 {
 	const struct cmdname_help *e1 = elem1;
@@ -206,17 +227,21 @@ void list_common_cmds_help(void)
 {
 	int i, longest = 0;
 	int current_grp = -1;
+	int nr = 0;
+	struct cmdname_help *common_cmds;
 
-	for (i = 0; i < ARRAY_SIZE(common_cmds); i++) {
+	extract_common_cmds(&common_cmds, &nr);
+
+	for (i = 0; i < nr; i++) {
 		if (longest < strlen(common_cmds[i].name))
 			longest = strlen(common_cmds[i].name);
 	}
 
-	QSORT(common_cmds, ARRAY_SIZE(common_cmds), cmd_group_cmp);
+	QSORT(common_cmds, nr, cmd_group_cmp);
 
 	puts(_("These are common Git commands used in various situations:"));
 
-	for (i = 0; i < ARRAY_SIZE(common_cmds); i++) {
+	for (i = 0; i < nr; i++) {
 		if (common_cmds[i].group != current_grp) {
 			printf("\n%s\n", _(common_cmd_groups[common_cmds[i].group]));
 			current_grp = common_cmds[i].group;
@@ -226,6 +251,7 @@ void list_common_cmds_help(void)
 		mput_char(' ', longest - strlen(common_cmds[i].name));
 		puts(_(common_cmds[i].help));
 	}
+	free(common_cmds);
 }
 
 void list_all_cmds(void)
@@ -301,8 +327,9 @@ static const char bad_interpreter_advice[] =
 
 const char *help_unknown_cmd(const char *cmd)
 {
-	int i, n, best_similarity = 0;
+	int i, n, best_similarity = 0, nr_common;
 	struct cmdnames main_cmds, other_cmds;
+	struct cmdname_help *common_cmds;
 
 	memset(&main_cmds, 0, sizeof(main_cmds));
 	memset(&other_cmds, 0, sizeof(other_cmds));
@@ -316,6 +343,8 @@ const char *help_unknown_cmd(const char *cmd)
 	add_cmd_list(&main_cmds, &other_cmds);
 	QSORT(main_cmds.names, main_cmds.cnt, cmdname_compare);
 	uniq(&main_cmds);
+
+	extract_common_cmds(&common_cmds, &nr_common);
 
 	/* This abuses cmdname->len for levenshtein distance */
 	for (i = 0, n = 0; i < main_cmds.cnt; i++) {
@@ -331,10 +360,10 @@ const char *help_unknown_cmd(const char *cmd)
 			die(_(bad_interpreter_advice), cmd, cmd);
 
 		/* Does the candidate appear in common_cmds list? */
-		while (n < ARRAY_SIZE(common_cmds) &&
+		while (n < nr_common &&
 		       (cmp = strcmp(common_cmds[n].name, candidate)) < 0)
 			n++;
-		if ((n < ARRAY_SIZE(common_cmds)) && !cmp) {
+		if ((n < nr_common) && !cmp) {
 			/* Yes, this is one of the common commands */
 			n++; /* use the entry from common_cmds[] */
 			if (starts_with(candidate, cmd)) {
@@ -347,6 +376,7 @@ const char *help_unknown_cmd(const char *cmd)
 		main_cmds.names[i]->len =
 			levenshtein(cmd, candidate, 0, 2, 1, 3) + 1;
 	}
+	FREE_AND_NULL(common_cmds);
 
 	QSORT(main_cmds.names, main_cmds.cnt, levenshtein_compare);
 
