@@ -355,9 +355,12 @@ done:
 
 static void print_preparing_worktree_line(const char *branch,
 					  const char *new_branch,
-					  const char *new_branch_force)
+					  const char *new_branch_force,
+					  int checkout_existing_branch)
 {
-	if (new_branch_force) {
+	if (checkout_existing_branch) {
+		printf_ln(_("Preparing worktree (checking out '%s')"), branch);
+	} else if (new_branch_force) {
 		struct commit *commit = lookup_commit_reference_by_name(new_branch_force);
 		if (!commit)
 			printf_ln(_("Preparing worktree (new branch '%s')"), new_branch_force);
@@ -378,11 +381,23 @@ static void print_preparing_worktree_line(const char *branch,
 	}
 }
 
-static const char *dwim_branch(const char *path, const char **new_branch)
+static const char *dwim_branch(const char *path, const char **new_branch,
+			       int *checkout_existing_branch)
 {
 	int n;
 	const char *s = worktree_basename(path, &n);
-	*new_branch = xstrndup(s, n);
+	const char *branchname = xstrndup(s, n);
+	struct strbuf ref = STRBUF_INIT;
+
+	if (!strbuf_check_branch_ref(&ref, branchname) &&
+	    ref_exists(ref.buf)) {
+		*checkout_existing_branch = 1;
+		strbuf_release(&ref);
+		UNLEAK(branchname);
+		return branchname;
+	}
+
+	*new_branch = branchname;
 	if (guess_remote) {
 		struct object_id oid;
 		const char *remote =
@@ -397,6 +412,7 @@ static int add(int ac, const char **av, const char *prefix)
 	struct add_opts opts;
 	const char *new_branch_force = NULL;
 	char *path;
+	int checkout_existing_branch = 0;
 	const char *branch;
 	const char *new_branch = NULL;
 	const char *opt_track = NULL;
@@ -444,7 +460,8 @@ static int add(int ac, const char **av, const char *prefix)
 	}
 
 	if (ac < 2 && !new_branch && !opts.detach) {
-		const char *s = dwim_branch(path, &new_branch);
+		const char *s = dwim_branch(path, &new_branch,
+					    &checkout_existing_branch);
 		if (s)
 			branch = s;
 	}
@@ -464,7 +481,8 @@ static int add(int ac, const char **av, const char *prefix)
 		}
 	}
 
-	print_preparing_worktree_line(branch, new_branch, new_branch_force);
+	print_preparing_worktree_line(branch, new_branch, new_branch_force,
+				      checkout_existing_branch);
 
 	if (new_branch) {
 		struct child_process cp = CHILD_PROCESS_INIT;
