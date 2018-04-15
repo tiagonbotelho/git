@@ -272,6 +272,18 @@ void list_all_cmds(void)
 	clean_cmdnames(&other_cmds);
 }
 
+void list_porcelain_cmds(void)
+{
+	int i, nr = ARRAY_SIZE(command_list);
+	struct cmdname_help *cmds = command_list;
+
+	for (i = 0; i < nr; i++) {
+		if (cmds[i].category != CAT_mainporcelain)
+			continue;
+		puts(cmds[i].name);
+	}
+}
+
 int is_in_cmdlist(struct cmdnames *c, const char *s)
 {
 	int i;

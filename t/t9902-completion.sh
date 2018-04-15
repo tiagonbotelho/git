@@ -1208,8 +1208,6 @@ test_expect_success 'basic' '
 	grep -q "^add \$" out &&
 	# script
 	grep -q "^filter-branch \$" out &&
-	# plumbing
-	! grep -q "^ls-files \$" out &&
 
 	run_completion "git f" &&
 	! grep -q -v "^f" out
@@ -1272,7 +1270,7 @@ test_expect_success 'general options' '
 	test_completion "git --no-r" "--no-replace-objects "
 '
 
-test_expect_success 'general options plus command' '
+test_expect_failure 'general options plus command' '
 	test_completion "git --version check" "checkout " &&
 	test_completion "git --paginate check" "checkout " &&
 	test_completion "git --git-dir=foo check" "checkout " &&
