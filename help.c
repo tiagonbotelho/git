@@ -242,7 +242,9 @@ void list_common_cmds_help(void)
 	puts(_("These are common Git commands used in various situations:"));
 
 	for (i = 0; i < nr; i++) {
-		if (common_cmds[i].group != current_grp) {
+		if (ARRAY_SIZE(common_cmd_groups) <= common_cmds[i].group)
+			; /* skip */
+		else if (common_cmds[i].group != current_grp) {
 			printf("\n%s\n", _(common_cmd_groups[common_cmds[i].group]));
 			current_grp = common_cmds[i].group;
 		}
