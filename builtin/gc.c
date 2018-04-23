@@ -494,6 +494,7 @@ int cmd_gc(int argc, const char **argv, const char *prefix)
 	pid_t pid;
 	int daemonized = 0;
 	int keep_base_pack = -1;
+	timestamp_t dummy;
 
 	struct option builtin_gc_options[] = {
 		OPT__QUIET(&quiet, N_("suppress progress reporting")),
@@ -524,7 +525,7 @@ int cmd_gc(int argc, const char **argv, const char *prefix)
 	/* default expiry time, overwritten in gc_config */
 	gc_config();
 	if (parse_expiry_date(gc_log_expire, &gc_log_expire_time))
-		die(_("Failed to parse gc.logexpiry value %s"), gc_log_expire);
+		die(_("failed to parse gc.logexpiry value %s"), gc_log_expire);
 
 	if (pack_refs < 0)
 		pack_refs = !is_bare_repository();
@@ -533,6 +534,9 @@ int cmd_gc(int argc, const char **argv, const char *prefix)
 			     builtin_gc_usage, 0);
 	if (argc > 0)
 		usage_with_options(builtin_gc_usage, builtin_gc_options);
+
+	if (prune_expire && parse_expiry_date(prune_expire, &dummy))
+		die(_("failed to parse prune expiry value %s"), prune_expire);
 
 	if (aggressive) {
 		argv_array_push(&repack, "-f");
