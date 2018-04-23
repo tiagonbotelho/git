@@ -111,6 +111,13 @@ static GIT_PATH_FUNC(rebase_path_author_script, "rebase-merge/author-script")
  */
 static GIT_PATH_FUNC(rebase_path_amend, "rebase-merge/amend")
 /*
+ * If there was a merge conflict in a fixup/squash series, we need to
+ * record the type so that a `git rebase --skip` can clean up the commit
+ * message as appropriate. This file will contain that type (`fixup` or
+ * `squash`), and not exist otherwise.
+ */
+static GIT_PATH_FUNC(rebase_path_amend_type, "rebase-merge/amend-type")
+/*
  * When we stop at a given patch via the "edit" command, this file contains
  * the abbreviated commit name of the corresponding patch.
  */
@@ -1380,19 +1387,18 @@ static int update_squash_messages(enum todo_command command,
 		eol = strchrnul(buf.buf, '\n');
 		if (buf.buf[0] != comment_line_char ||
 		    (p += strcspn(p, "0123456789\n")) == eol)
-			return error(_("unexpected 1st line of squash message:"
-				       "\n\n\t%.*s"),
-				     (int)(eol - buf.buf), buf.buf);
-		count = strtol(p, NULL, 10);
-
-		if (count < 1)
-			return error(_("invalid 1st line of squash message:\n"
-				       "\n\t%.*s"),
-				     (int)(eol - buf.buf), buf.buf);
+			count = -1;
+		else
+			count = strtol(p, NULL, 10);
 
 		strbuf_addf(&header, "%c ", comment_line_char);
-		strbuf_addf(&header,
-			    _("This is a combination of %d commits."), ++count);
+		if (count < 1)
+			strbuf_addf(&header, _("This is a combination of "
+					       "several commits."));
+		else
+			strbuf_addf(&header,
+				    _("This is a combination of %d commits."),
+				    ++count);
 		strbuf_splice(&buf, 0, eol - buf.buf, header.buf, header.len);
 		strbuf_release(&header);
 	} else {
@@ -1435,13 +1441,22 @@ static int update_squash_messages(enum todo_command command,
 	if (command == TODO_SQUASH) {
 		unlink(rebase_path_fixup_msg());
 		strbuf_addf(&buf, "\n%c ", comment_line_char);
-		strbuf_addf(&buf, _("This is the commit message #%d:"), count);
+		if (count < 2)
+			strbuf_addf(&buf, _("This is the next commit "
+					    "message:"));
+		else
+			strbuf_addf(&buf, _("This is the commit message #%d:"),
+				    count);
 		strbuf_addstr(&buf, "\n\n");
 		strbuf_addstr(&buf, body);
 	} else if (command == TODO_FIXUP) {
 		strbuf_addf(&buf, "\n%c ", comment_line_char);
-		strbuf_addf(&buf, _("The commit message #%d will be skipped:"),
-			    count);
+		if (count < 2)
+			strbuf_addf(&buf, _("The next commit message will be "
+					    "skipped:"));
+		else
+			strbuf_addf(&buf, _("The commit message #%d will be "
+					    "skipped:"), count);
 		strbuf_addstr(&buf, "\n\n");
 		strbuf_add_commented_lines(&buf, body, strlen(body));
 	} else
@@ -2472,10 +2487,20 @@ static int error_with_patch(struct commit *commit,
 static int error_failed_squash(struct commit *commit,
 	struct replay_opts *opts, int subject_len, const char *subject)
 {
+	const char *amend_type = "squash";
+
+	if (file_exists(rebase_path_fixup_msg())) {
+		unlink(rebase_path_fixup_msg());
+		amend_type = "fixup";
+	}
+	if (write_message(amend_type, strlen(amend_type),
+		       rebase_path_amend_type(), 0))
+		return error(_("could not write '%s'"),
+			     rebase_path_amend_type());
+
 	if (rename(rebase_path_squash_msg(), rebase_path_message()))
 		return error(_("could not rename '%s' to '%s'"),
 			rebase_path_squash_msg(), rebase_path_message());
-	unlink(rebase_path_fixup_msg());
 	unlink(git_path_merge_msg());
 	if (copy_file(git_path_merge_msg(), rebase_path_message(), 0666))
 		return error(_("could not copy '%s' to '%s'"),
@@ -3000,6 +3025,7 @@ static int pick_commits(struct todo_list *todo_list, struct replay_opts *opts)
 			unlink(rebase_path_author_script());
 			unlink(rebase_path_stopped_sha());
 			unlink(rebase_path_amend());
+			unlink(rebase_path_amend_type());
 			delete_ref(NULL, "REBASE_HEAD", NULL, REF_NO_DEREF);
 		}
 		if (item->command <= TODO_SQUASH) {
@@ -3210,17 +3236,12 @@ static int continue_single_pick(void)
 
 static int commit_staged_changes(struct replay_opts *opts)
 {
-	unsigned int flags = ALLOW_EMPTY | EDIT_MSG;
+	unsigned int flags = ALLOW_EMPTY | EDIT_MSG, is_fixup = 0, is_clean;
 
 	if (has_unstaged_changes(1))
 		return error(_("cannot rebase: You have unstaged changes."));
-	if (!has_uncommitted_changes(0)) {
-		const char *cherry_pick_head = git_path_cherry_pick_head();
 
-		if (file_exists(cherry_pick_head) && unlink(cherry_pick_head))
-			return error(_("could not remove CHERRY_PICK_HEAD"));
-		return 0;
-	}
+	is_clean = !has_uncommitted_changes(0);
 
 	if (file_exists(rebase_path_amend())) {
 		struct strbuf rev = STRBUF_INIT;
@@ -3233,19 +3254,45 @@ static int commit_staged_changes(struct replay_opts *opts)
 		if (get_oid_hex(rev.buf, &to_amend))
 			return error(_("invalid contents: '%s'"),
 				rebase_path_amend());
-		if (oidcmp(&head, &to_amend))
+		if (!is_clean && oidcmp(&head, &to_amend))
 			return error(_("\nYou have uncommitted changes in your "
 				       "working tree. Please, commit them\n"
 				       "first and then run 'git rebase "
 				       "--continue' again."));
+		if (is_clean && !oidcmp(&head, &to_amend)) {
+			strbuf_reset(&rev);
+			/*
+			 * Clean tree, but we may need to finalize a
+			 * fixup/squash chain. A failed fixup/squash leaves the
+			 * file amend-type in rebase-merge/; It is okay if that
+			 * file is missing, in which case there is no such
+			 * chain to finalize.
+			 */
+			read_oneliner(&rev, rebase_path_amend_type(), 0);
+			if (!strcmp("squash", rev.buf))
+				is_fixup = TODO_SQUASH;
+			else if (!strcmp("fixup", rev.buf)) {
+				is_fixup = TODO_FIXUP;
+				flags = (flags & ~EDIT_MSG) | CLEANUP_MSG;
+			}
+		}
 
 		strbuf_release(&rev);
 		flags |= AMEND_MSG;
 	}
 
+	if (is_clean && !is_fixup) {
+		const char *cherry_pick_head = git_path_cherry_pick_head();
+
+		if (file_exists(cherry_pick_head) && unlink(cherry_pick_head))
+			return error(_("could not remove CHERRY_PICK_HEAD"));
+		return 0;
+	}
+
 	if (run_git_commit(rebase_path_message(), opts, flags))
 		return error(_("could not commit staged changes."));
 	unlink(rebase_path_amend());
+	unlink(rebase_path_amend_type());
 	return 0;
 }
 
