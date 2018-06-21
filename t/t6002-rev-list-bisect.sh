@@ -7,6 +7,65 @@ test_description='Tests git rev-list --bisect functionality'
 . ./test-lib.sh
 . "$TEST_DIRECTORY"/lib-t6000.sh # t6xxx specific functions
 
+# We generate the following commit graph:
+#
+#   B - C
+#  /      \
+# A        FX
+#  \      /
+#   D - EX
+
+test_expect_success 'setup' '
+  test_commit Z &&
+  test_commit M1 &&
+  git reset --hard Z &&
+  test_commit M2 &&
+  test_merge A M1 &&
+  test_commit B &&
+  test_commit C &&
+  git reset --hard A &&
+  test_commit D &&
+  test_commit EX &&
+  test_merge FX C
+'
+
+test_output_expect_success "--bisect --first-parent" 'git rev-list --bisect --first-parent FX ^A' <<EOF
+$(git rev-parse EX)
+FX $(git rev-parse FX)
+EX $(git rev-parse EX)
+D $(git rev-parse D)
+A $(git rev-parse A)
+EOF
+
+test_output_expect_success "--first-parent" 'git rev-list --first-parent FX ^A' <<EOF
+FX $(git rev-parse FX)
+EX $(git rev-parse EX)
+D $(git rev-parse D)
+EOF
+
+test_output_expect_success "--bisect --first-parent" 'git rev-list --bisect --first-parent FX ^A' <<EOF
+$(git rev-parse EX)
+EOF
+
+test_output_expect_success "--bisect --first-parent" 'git rev-list --bisect --first-parent FX ^A' <<EOF
+$(git rev-parse EX)
+EOF
+
+test_output_expect_success "--bisect-vars --first-parent" 'git rev-list --bisect-vars --first-parent FX ^A' <<EOF
+bisect_rev='$(git rev-parse EX)'
+bisect_nr=1
+bisect_good=0
+bisect_bad=1
+bisect_all=3
+bisect_steps=1
+EOF
+
+test_output_expect_success "--bisect-all --first-parent" 'git rev-list --bisect-all --first-parent FX ^A' <<EOF
+$(git rev-parse EX) (dist=1)
+$(git rev-parse D) (dist=1)
+$(git rev-parse FX) (dist=0)
+EOF
+
 # usage: test_bisection max-diff bisect-option head ^prune...
 #
 # e.g. test_bisection 1 --bisect l1 ^l0
@@ -36,6 +95,7 @@ test_bisection_diff()
 	'test $_bisect_err -le $_max_diff'
 }
 
+test_commit idle
 date >path0
 git update-index --add path0
 save_tag tree git write-tree
@@ -262,42 +322,5 @@ test_expect_success 'rev-parse --bisect can default to good/bad refs' '
 	sort <actual >actual.sorted &&
 	test_cmp expect.sorted actual.sorted
 '
-
-# We generate the following commit graph:
-#
-#   B - C
-#  /      \
-# A        FX
-#  \      /
-#   D - EX
-
-test_expect_success 'setup' '
-  test_commit A &&
-  test_commit B &&
-  test_commit C &&
-  git reset --hard A &&
-  test_commit D &&
-  test_commit EX &&
-  test_merge FX C
-'
-
-test_output_expect_success "--bisect --first-parent" 'git rev-list --bisect --first-parent FX ^A' <<EOF
-$(git rev-parse EX)
-EOF
-
-test_output_expect_success "--bisect-vars --first-parent" 'git rev-list --bisect-vars --first-parent FX ^A' <<EOF
-bisect_rev='$(git rev-parse EX)'
-bisect_nr=1
-bisect_good=0
-bisect_bad=1
-bisect_all=3
-bisect_steps=1
-EOF
-
-test_output_expect_success "--bisect-all --first-parent" 'git rev-list --bisect-all --first-parent FX ^A' <<EOF
-$(git rev-parse EX) (dist=1)
-$(git rev-parse D) (dist=1)
-$(git rev-parse FX) (dist=0)
-EOF
 
 test_done

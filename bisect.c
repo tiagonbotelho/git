@@ -33,8 +33,6 @@ static const char *term_good;
  *
  * We care just barely enough to avoid recursing for
  * non-merge entries.
- *
- * Note: This function does not support the usage --first-parent.
  */
 static int count_distance(struct commit_list *entry)
 {
@@ -336,7 +334,8 @@ static struct commit_list *do_find_bisection(struct commit_list *list,
 			if (0 <= weight(p))
 				continue;
 			for (q = p->item->parents; q; q = q->next) {
-				if ((bisect_flags & BISECT_FIRST_PARENT)) {
+        printf("TIAGO q: %d p: %d sha_q: %s sha_p: %s\n", weight(q), weight(p), oid_to_hex(&q->item->object.oid), oid_to_hex(&p->item->object.oid));
+				/*if ((bisect_flags & BISECT_FIRST_PARENT)) {
 					if (weight(q) < 0)
 						q = NULL;
 					break;
@@ -344,7 +343,13 @@ static struct commit_list *do_find_bisection(struct commit_list *list,
 				if (q->item->object.flags & UNINTERESTING)
 					continue;
 				if (0 <= weight(q))
-					break;
+					break;*/
+        if (!(q->item->object.flags & UNINTERESTING))
+          //printf("q: %d p: %d\n", weight(q), weight(p));
+          if (0 <= weight(q))
+            break;
+        if (bisect_flags & BISECT_FIRST_PARENT)
+          break;
 			}
 			if (!q)
 				continue;
